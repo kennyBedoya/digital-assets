@@ -1,0 +1,144 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model assets {
+  id                                          BigInt      @id @default(autoincrement())
+  symbol                                      String      @unique @db.VarChar(20)
+  name                                        String      @db.VarChar(100)
+  decimals                                    Int         @default(8) @db.SmallInt
+  created_at                                  DateTime    @default(now()) @db.Timestamptz(6)
+  exchanges_exchanges_source_asset_idToassets exchanges[] @relation("exchanges_source_asset_idToassets")
+  exchanges_exchanges_target_asset_idToassets exchanges[] @relation("exchanges_target_asset_idToassets")
+  quotes_quotes_source_asset_idToassets       quotes[]    @relation("quotes_source_asset_idToassets")
+  quotes_quotes_target_asset_idToassets       quotes[]    @relation("quotes_target_asset_idToassets")
+  wallets                                     wallets[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model compliance_decisions {
+  id                 BigInt    @id @default(autoincrement())
+  exchange_id        String    @db.Uuid
+  compliance_user_id BigInt?
+  risk_level         String    @db.VarChar(20)
+  decision           String?   @db.VarChar(20)
+  reason             String?
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  decided_at         DateTime? @db.Timestamptz(6)
+  exchanges          exchanges @relation(fields: [exchange_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "compliance_exchange_fk")
+  users              users?    @relation(fields: [compliance_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "compliance_user_fk")
+
+  @@index([exchange_id], map: "idx_compliance_exchange")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model exchanges {
+  id                                       String                 @id @db.Uuid
+  user_id                                  BigInt
+  quote_id                                 String                 @db.Uuid
+  source_asset_id                          BigInt
+  target_asset_id                          BigInt
+  source_amount                            Decimal                @db.Decimal(38, 8)
+  price                                    Decimal                @db.Decimal(38, 8)
+  fee                                      Decimal                @db.Decimal(38, 8)
+  target_amount                            Decimal                @db.Decimal(38, 8)
+  risk_level                               String?                @db.VarChar(20)
+  requires_follow_up                       Boolean                @default(false)
+  status                                   String                 @default("CREATED") @db.VarChar(30)
+  idempotency_key                          String                 @unique(map: "exchanges_idempotency_unique") @db.VarChar(255)
+  request_hash                             String                 @db.VarChar(64)
+  created_at                               DateTime               @default(now()) @db.Timestamptz(6)
+  expires_at                               DateTime               @db.Timestamptz(6)
+  updated_at                               DateTime               @default(now()) @db.Timestamptz(6)
+  compliance_decisions                     compliance_decisions[]
+  quotes                                   quotes                 @relation(fields: [quote_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "exchanges_quote_fk")
+  assets_exchanges_source_asset_idToassets assets                 @relation("exchanges_source_asset_idToassets", fields: [source_asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "exchanges_source_asset_fk")
+  assets_exchanges_target_asset_idToassets assets                 @relation("exchanges_target_asset_idToassets", fields: [target_asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "exchanges_target_asset_fk")
+  users                                    users                  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "exchanges_user_fk")
+  ledger_entries                           ledger_entries[]
+
+  @@index([expires_at], map: "idx_exchanges_expiration")
+  @@index([status], map: "idx_exchanges_pending_review", where: raw("((status)::text = 'PENDING_REVIEW'::text)"))
+  @@index([status], map: "idx_exchanges_status")
+  @@index([user_id], map: "idx_exchanges_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ledger_entries {
+  id               BigInt     @id @default(autoincrement())
+  wallet_id        BigInt
+  exchange_id      String?    @db.Uuid
+  movement_type    String     @db.VarChar(20)
+  amount           Decimal    @db.Decimal(38, 8)
+  available_before Decimal    @db.Decimal(38, 8)
+  available_after  Decimal    @db.Decimal(38, 8)
+  held_before      Decimal    @db.Decimal(38, 8)
+  held_after       Decimal    @db.Decimal(38, 8)
+  balance_before   Decimal    @db.Decimal(38, 8)
+  balance_after    Decimal    @db.Decimal(38, 8)
+  status           String     @default("CONFIRMED") @db.VarChar(20)
+  created_at       DateTime   @default(now()) @db.Timestamptz(6)
+  exchanges        exchanges? @relation(fields: [exchange_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "ledger_exchange_fk")
+  wallets          wallets    @relation(fields: [wallet_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "ledger_wallet_fk")
+
+  @@index([exchange_id], map: "idx_ledger_exchange")
+  @@index([wallet_id, created_at], map: "idx_ledger_wallet_created")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model quotes {
+  id                                    String      @id @db.Uuid
+  user_id                               BigInt
+  source_asset_id                       BigInt
+  target_asset_id                       BigInt
+  source_amount                         Decimal     @db.Decimal(38, 8)
+  price                                 Decimal     @db.Decimal(38, 8)
+  fee                                   Decimal     @db.Decimal(38, 8)
+  estimated_target_amount               Decimal     @db.Decimal(38, 8)
+  status                                String      @default("ACTIVE") @db.VarChar(20)
+  created_at                            DateTime    @default(now()) @db.Timestamptz(6)
+  expires_at                            DateTime    @db.Timestamptz(6)
+  exchanges                             exchanges[]
+  assets_quotes_source_asset_idToassets assets      @relation("quotes_source_asset_idToassets", fields: [source_asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "quotes_source_asset_fk")
+  assets_quotes_target_asset_idToassets assets      @relation("quotes_target_asset_idToassets", fields: [target_asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "quotes_target_asset_fk")
+  users                                 users       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "quotes_user_fk")
+
+  @@index([status, expires_at], map: "idx_quotes_status_expiration")
+  @@index([user_id], map: "idx_quotes_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                   BigInt                 @id @default(autoincrement())
+  external_id          String                 @unique @db.VarChar(50)
+  role                 String                 @db.VarChar(20)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  compliance_decisions compliance_decisions[]
+  exchanges            exchanges[]
+  quotes               quotes[]
+  wallets              wallets[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model wallets {
+  id                BigInt           @id @default(autoincrement())
+  user_id           BigInt
+  asset_id          BigInt
+  available_balance Decimal          @default(0) @db.Decimal(38, 8)
+  held_balance      Decimal          @default(0) @db.Decimal(38, 8)
+  created_at        DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime         @default(now()) @db.Timestamptz(6)
+  ledger_entries    ledger_entries[]
+  assets            assets           @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "wallets_asset_fk")
+  users             users            @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "wallets_user_fk")
+
+  @@unique([user_id, asset_id], map: "wallets_unique_user_asset")
+  @@index([user_id], map: "idx_wallets_user_id")
+}
