@@ -194,7 +194,7 @@ GET http://localhost:3000/api/ledger
 ## Tiempo aproximado empleado
 
 ```text
-4–6 horas
+11-12 horas
 ```
 
 ## Decisiones técnicas
