@@ -248,3 +248,80 @@ psql -U <usuario> -d <base_de_datos> -f seed.sql
 ```text
 https://drive.google.com/file/d/1nwrWFisnwK_efjTEe0VTN840cQt42azg/view?usp=sharing
 ```
+
+## Preguntas de Diseño
+```text
+a. Separaría suministro autorizado, emisión y colocación. Mantendría un registro del máximo autorizado y, dentro de una transacción, validaría que:
+emitido + nuevo tramo <= suministro autorizado
+Cada tramo tendría su propio identificador, cantidad, estado y trazabilidad en ledger. La colocación solo podría ejecutarse sobre unidades previamente emitidas y nunca superar el saldo disponible para la coloación. Los límites también se validarían bajo bloqueo transaccional para evitar sobreemisión concurrente.
+
+b. Implementaría la transferencia dentro de una única transacción de base de datos y garantizando el siguiente proceso:
+
+- Bloquear las wallets origen y destino.
+- Validar saldo disponible.
+- Debitar origen y acreditar destino.
+- Registrar ambos movimientos en el ledger.
+- Asociar los movimientos a un transferId.
+- Usar una idempotencyKey única para evitar duplicados.
+
+Si cualquier paso falla, toda la operación hace rollback. De esta forma se preservan atomicidad, idempotencia y trazabilidad.
+
+c. Mantendría el ledger interno como fuente de verdad contable y realizaría conciliaciones periódicas contra la wallet omnibus administrada por Fireblocks o equivalente.
+
+Compararía lo siguiente:
+
+- saldo total interno por activo
+- saldo on-chain/custodiado
+- movimientos internos
+- depósitos y retiros pendientes
+- diferencias de conciliación
+
+Las diferencias generarían una alerta y bloquearían las operaciones afectadas hasta su investigación. También mantendría un registro de cada conciliación y sus resultados para auditoría.
+
+d. Si Sumsub, Chainalysis o equivalente no está disponible:
+
+- no asumiría aprobación
+- marcaría la operación como PENDING_COMPLIANCE o equivalente
+- mantendría los fondos retenidos cuando corresponda
+- no permitiría completar ni liberar la operación
+- registraría el motivo y el evento de indisponibilidad
+
+Una vez recuperado el servicio, la operación podría continuar únicamente después de obtener una correcta validación.
+
+e. Antes del despliegue implementaría controles en cuatro niveles:
+
+Técnicos
+
+- Validación estricta de entradas.
+- Transacciones y bloqueo de registros para operaciones financieras.
+- Ledger inmutable/auditable.
+- Pruebas unitarias, integración y end-to-end.
+- Manejo de errores y timeouts.
+- Backups y recuperación ante desastres.
+- Monitoreo, métricas y alertas.
+
+Seguridad
+
+- Autenticación y autorización basada en roles.
+- MFA para funciones críticas.
+- Gestión segura de secretos.
+- Cifrado en tránsito y reposo.
+- Rate limiting.
+- Análisis de vulnerabilidades y penetration testing.
+
+Operativos
+
+- Segregación de funciones, especialmente para Compliance.
+- Procedimientos de aprobación y escalamiento.
+- Conciliaciones periódicas.
+- Runbooks para incidentes.
+- Control de cambios y despliegues.
+
+Regulatorios
+
+- Monitoreo de transacciones.
+- Retención de evidencias y registros.
+
+f. Separaría las resposabilidades, teniendo en un frente la plataforma (usuarios, balances, ledger), por otro lado los contratos como la emisión, la transferencia, y todo esto separadoo de la custodia, con la gestión de claves y wallets. Así la custodia queda separada de la lógica de negocio, ademas cada activo debe poder verificarse de forma independiente.
+
+```
