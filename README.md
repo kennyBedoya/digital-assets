@@ -243,3 +243,8 @@ npx prisma migrate status
 ```bash
 psql -U <usuario> -d <base_de_datos> -f seed.sql
 ```
+
+## frontend Mockups
+```text
+https://drive.google.com/file/d/1nwrWFisnwK_efjTEe0VTN840cQt42azg/view?usp=sharing
+```
