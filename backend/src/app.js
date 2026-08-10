@@ -8,6 +8,10 @@ const exchangeRoutes = require('./routes/exchange.routes')
 const ledgerRoutes = require('./routes/ledger.routes')
 const complianceRoutes = require('./routes/compliance.routes')
 
+BigInt.prototype.toJSON = function () {
+  return this.toString()
+}
+
 const app = express()
 
 app.use(express.json())
