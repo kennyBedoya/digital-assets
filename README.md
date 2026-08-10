@@ -194,7 +194,7 @@ GET http://localhost:3000/api/ledger
 ## Tiempo aproximado empleado
 
 ```text
-11-12 horas
+15-16 horas
 ```
 
 ## Decisiones técnicas
@@ -248,7 +248,10 @@ psql -U <usuario> -d <base_de_datos> -f seed.sql
 ```text
 https://drive.google.com/file/d/1nwrWFisnwK_efjTEe0VTN840cQt42azg/view?usp=sharing
 ```
-
+## Diagramas
+```text
+https://drive.google.com/drive/folders/1B8d3bz0k3V0c7LApRtWVeahl3VgAtiy6?usp=sharing
+```
 ## Preguntas de Diseño
 ```text
 a. Separaría suministro autorizado, emisión y colocación. Mantendría un registro del máximo autorizado y, dentro de una transacción, validaría que:
